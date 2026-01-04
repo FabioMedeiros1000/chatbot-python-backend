@@ -1,0 +1,9 @@
+fastapi==0.128.0
+langchain_core==1.2.6
+langchain_groq
+langchain_openai==1.1.6
+langchain_postgres==0.0.16
+psycopg==3.3.2
+pydantic==2.12.5
+python-dotenv==1.2.1
+uvicorn==0.29.0
