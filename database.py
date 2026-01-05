@@ -9,7 +9,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL não configurada")
 
-connection = psycopg.connect(DATABASE_URL)
+connection = psycopg.connect(DATABASE_URL, sslmode="require")
 
 
 
