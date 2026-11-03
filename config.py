@@ -1,35 +1,31 @@
-from langchain_openai import ChatOpenAI
-from langchain_groq import ChatGroq
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnableWithMessageHistory
+from langchain_core.runnables import RunnablePassthrough, RunnableWithMessageHistory
 
-from app.schemas import ModelProvider
-from prompt import prompt
+from prompt import prompt, STYLE_DEFAULT, STYLE_CONCISE
 from memory import get_memory
 
-def chat_config(api_key: str, model_provider: ModelProvider):
-    if model_provider == ModelProvider.chatgpt:
-        llm = ChatOpenAI(
-                model="gpt-4o-mini",
-                temperature=0.3,
-                openai_api_key=api_key
-            )
-    elif model_provider == ModelProvider.groq:
-        llm = ChatGroq(
-            model="llama-3.1-8b-instant",
-            temperature=0.3,
-            groq_api_key=api_key
+
+def chat_config(llm, history_window: int, concise: bool = False):
+    """Monta a chain a partir de um LLM já criado (ver app.providers.build_llm).
+
+    history_window limita quantas mensagens do histórico vão ao modelo,
+    para o custo em tokens não crescer com a conversa.
+    """
+    style = STYLE_CONCISE if concise else STYLE_DEFAULT
+
+    chain_base = (
+        RunnablePassthrough.assign(
+            history=lambda x: x["history"][-history_window:],
+            style=lambda _: style,
         )
-    else:
-        raise ValueError("Model provider não suportado")
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
 
-    chain_base = prompt | llm | StrOutputParser()
-
-    chatbot = RunnableWithMessageHistory(
+    return RunnableWithMessageHistory(
         chain_base,
         get_memory,
         input_messages_key="question",
         history_messages_key="history"
     )
-
-    return chatbot
