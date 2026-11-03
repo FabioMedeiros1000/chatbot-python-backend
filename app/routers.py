@@ -11,7 +11,7 @@ from app.schemas import (
     ModelsResponse,
     UsageResponse,
 )
-from database import connection
+from database import pool
 from app.repositories import MessageRepository
 from app.services import ChatbotService
 from app.providers import free_models, list_models
@@ -25,9 +25,9 @@ from app.rate_limit import (
 )
 
 router = APIRouter(prefix="/api")
-message_repository = MessageRepository(connection)
+message_repository = MessageRepository(pool)
 minute_limiter = MinuteLimiter()
-free_guard = FreeTierGuard(minute_limiter, DailyCounterRepository(connection))
+free_guard = FreeTierGuard(minute_limiter, DailyCounterRepository(pool))
 chatbot_service = ChatbotService(message_repository, free_guard, minute_limiter)
 
 

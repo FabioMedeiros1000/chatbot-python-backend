@@ -78,12 +78,14 @@ class MinuteLimiter:
 class DailyCounterRepository:
     """Contadores diários no Postgres (sobrevivem ao sleep/restart do Render)."""
 
-    def __init__(self, connection):
-        self.connection = connection
+    def __init__(self, pool):
+        self.pool = pool
         self._ensure_table()
 
+    # `pool.connection()` faz commit ao sair do bloco e rollback se houver exceção.
+
     def _ensure_table(self):
-        with self.connection.cursor() as cur:
+        with self.pool.connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS rate_limit_daily (
@@ -95,33 +97,27 @@ class DailyCounterRepository:
                 )
                 """
             )
-            self.connection.commit()
 
     def increment(self, scope: str, key: str, day: date, limit: int) -> int | None:
         """Incrementa atomicamente. Devolve o novo valor, ou None se estourou o limite."""
-        try:
-            with self.connection.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO rate_limit_daily (scope, key, day, count)
-                    VALUES (%s, %s, %s, 1)
-                    ON CONFLICT (scope, key, day)
-                    DO UPDATE SET count = rate_limit_daily.count + 1
-                    WHERE rate_limit_daily.count < %s
-                    RETURNING count
-                    """,
-                    (scope, key, day, limit),
-                )
-                row = cur.fetchone()
-            self.connection.commit()
-        except Exception:
-            self.connection.rollback()
-            raise
+        with self.pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO rate_limit_daily (scope, key, day, count)
+                VALUES (%s, %s, %s, 1)
+                ON CONFLICT (scope, key, day)
+                DO UPDATE SET count = rate_limit_daily.count + 1
+                WHERE rate_limit_daily.count < %s
+                RETURNING count
+                """,
+                (scope, key, day, limit),
+            )
+            row = cur.fetchone()
         return row[0] if row else None
 
     def refund(self, scope: str, key: str, day: date) -> None:
         try:
-            with self.connection.cursor() as cur:
+            with self.pool.connection() as conn, conn.cursor() as cur:
                 cur.execute(
                     """
                     UPDATE rate_limit_daily SET count = GREATEST(count - 1, 0)
@@ -129,22 +125,16 @@ class DailyCounterRepository:
                     """,
                     (scope, key, day),
                 )
-            self.connection.commit()
         except Exception:
-            self.connection.rollback()
+            pass
 
     def get(self, scope: str, key: str, day: date) -> int:
-        try:
-            with self.connection.cursor() as cur:
-                cur.execute(
-                    "SELECT count FROM rate_limit_daily WHERE scope = %s AND key = %s AND day = %s",
-                    (scope, key, day),
-                )
-                row = cur.fetchone()
-            self.connection.commit()
-        except Exception:
-            self.connection.rollback()
-            raise
+        with self.pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT count FROM rate_limit_daily WHERE scope = %s AND key = %s AND day = %s",
+                (scope, key, day),
+            )
+            row = cur.fetchone()
         return row[0] if row else 0
 
 

@@ -1,9 +1,24 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app import settings
 from app.routers import router
+from database import pool
 
-app = FastAPI(title="Chatbot", description="Api para um chatbot simples", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    yield
+    pool.close()
+
+
+app = FastAPI(
+    title="Chatbot",
+    description="Api para um chatbot simples",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,

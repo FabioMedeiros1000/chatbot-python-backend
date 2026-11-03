@@ -5,6 +5,7 @@ langchain-google-genai==4.4.2
 langchain_postgres==0.0.16
 httpx==0.28.1
 psycopg==3.3.2
+psycopg_pool==3.3.0
 pydantic==2.12.5
 python-dotenv==1.2.1
 uvicorn==0.29.0

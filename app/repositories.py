@@ -1,9 +1,11 @@
 class MessageRepository:
-    def __init__(self, connection):
-        self.connection = connection
+    def __init__(self, pool):
+        self.pool = pool
+
+    # `pool.connection()` faz commit ao sair do bloco e rollback se houver exceção.
 
     async def get_last_ai_message(self, session_id: str):
-        with self.connection.cursor() as cur:
+        with self.pool.connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT
@@ -61,7 +63,7 @@ class MessageRepository:
         """
         params.append(limit)
 
-        with self.connection.cursor() as cur:
+        with self.pool.connection() as conn, conn.cursor() as cur:
             cur.execute(query, tuple(params))
             rows = cur.fetchall()
 
@@ -80,7 +82,7 @@ class MessageRepository:
         ]
     
     async def has_messages(self, session_id: str) -> bool:
-        with self.connection.cursor() as cur:
+        with self.pool.connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT 1 FROM chat_message_history WHERE session_id = %s LIMIT 1",
                 (session_id,)
@@ -89,7 +91,7 @@ class MessageRepository:
 
     async def delete_last(self, session_id: str, n: int) -> int:
         """Apaga as n mensagens mais recentes da sessão (ex.: pergunta + recusa)."""
-        with self.connection.cursor() as cur:
+        with self.pool.connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 DELETE FROM chat_message_history
@@ -104,12 +106,11 @@ class MessageRepository:
                 (session_id, n)
             )
             deleted_rows = cur.fetchall()
-            self.connection.commit()
 
         return len(deleted_rows)
 
     async def delete_by_session(self, session_id: str) -> int:
-        with self.connection.cursor() as cur:
+        with self.pool.connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 DELETE FROM chat_message_history
@@ -119,6 +120,5 @@ class MessageRepository:
                 (session_id,)
             )
             deleted_rows = cur.fetchall()
-            self.connection.commit()
 
         return len(deleted_rows)
