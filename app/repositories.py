@@ -87,6 +87,27 @@ class MessageRepository:
             )
             return cur.fetchone() is not None
 
+    async def delete_last(self, session_id: str, n: int) -> int:
+        """Apaga as n mensagens mais recentes da sessão (ex.: pergunta + recusa)."""
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM chat_message_history
+                WHERE id IN (
+                    SELECT id FROM chat_message_history
+                    WHERE session_id = %s
+                    ORDER BY id DESC
+                    LIMIT %s
+                )
+                RETURNING id
+                """,
+                (session_id, n)
+            )
+            deleted_rows = cur.fetchall()
+            self.connection.commit()
+
+        return len(deleted_rows)
+
     async def delete_by_session(self, session_id: str) -> int:
         with self.connection.cursor() as cur:
             cur.execute(

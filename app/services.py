@@ -8,6 +8,7 @@ from app.repositories import MessageRepository
 from app.providers import build_llm, build_free_llm, map_provider_error
 from app.rate_limit import FreeTierGuard, MinuteLimiter, _too_many
 from config import chat_config
+from prompt import REFUSAL
 
 
 class ChatbotService:
@@ -67,6 +68,12 @@ class ChatbotService:
             raise error
 
         message = await self.repository.get_last_ai_message(session_id)
+
+        # Recusa (fora do escopo ou tentativa de injeção): não deixa a troca no
+        # histórico, para não contaminar o contexto das próximas mensagens.
+        # Continua contando na cota do modo gratuito.
+        if message["content"].strip().startswith(REFUSAL):
+            await self.repository.delete_last(session_id, 2)
 
         response = ChatbotResponse(
             id=message["id"],
